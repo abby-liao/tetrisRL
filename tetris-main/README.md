@@ -67,6 +67,11 @@ The script initializes the Tetris environment, loads a saved model checkpoint, a
 The resulting output is saved as **ai_result.mp4**, providing a standalone visualization of the trained agent’s behavior without requiring TensorBoard.
 
 ---
+## resources
+https://github.com/vietnh1009/Tetris-deep-Q-learning-pytorch
+https://medium.com/@samina.amin/deep-q-learning-dqn-71c109586bae
+https://www.heatonresearch.com/2017/06/01/hidden-layers.html
+---
 
 
 
