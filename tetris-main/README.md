@@ -29,21 +29,6 @@ These features are used by the agent to evaluate and select the best placement.
 ---
 ## Training Pipeline (train.py)
 
-This script implements the main training loop for the Tetris agent.
-
-During training, the environment enumerates all possible placements (rotation and horizontal position) for the current piece. The agent evaluates each candidate placement using the neural network and selects an action using an epsilon-greedy strategy (exploration vs. exploitation).
-
-After selecting a placement, the resulting board features and a handcrafted reward are stored in replay memory. Mini-batches are sampled from this memory to train the network via regression, allowing the model to learn a value estimate for board states.
-
-Key responsibilities:
-- Initialize the environment, model, optimizer, and replay memory  
-- Enumerate candidate next states for each piece  
-- Select actions using epsilon-greedy policy  
-- Compute reward based on board features  
-- Train the neural network using mini-batch updates  
-- Log training metrics (reward, lines cleared, epsilon) to TensorBoard  
-- Record gameplay GIFs periodically for visualization  
-- Save model checkpoints during training
 
 ---
 ## record (visualizer.py)
@@ -68,9 +53,24 @@ The resulting output is saved as **ai_result.mp4**, providing a standalone visua
 
 ---
 ### Resources
-- https://github.com/vietnh1009/Tetris-deep-Q-learning-pytorch
-- https://medium.com/@samina.amin/deep-q-learning-dqn-71c109586bae
-- https://www.heatonresearch.com/2017/06/01/hidden-layers.html
+-Reward Based Epsilon Decay
+-https://aakash94.github.io/Reward-Based-Epsilon-Decay/
+Reward-Based Epsilon Decay (RBED) is an exploration strategy in reinforcement learning that adjusts the ε value in ε-greedy policies based on the agent’s performance rather than time or episode count. Instead of gradually decreasing ε on a fixed schedule, RBED lowers ε only when the agent reaches a predefined reward threshold, then raises the threshold for the next stage. This creates a performance-driven transition from exploration to exploitation, ensuring that the agent reduces exploration only after demonstrating learning progress. As a result, the approach can produce more stable training, better reproducibility, and more intuitive hyperparameter tuning, although its effectiveness depends on the quality and consistency of reward signals in a given environment.
+
+-Introducing Q Learning
+-https://huggingface.co/learn/deep-rl-course/en/unit2/q-learning
+
+-Batch Size
+-https://ai.stackexchange.com/questions/23254/is-there-a-logical-method-of-deducing-an-optimal-batch-size-when-training-a-deep
+There is no universal method to derive the optimal batch size for DQN. In practice, 32 or 64 are commonly used as default values, while larger batch sizes can be explored when aiming for the best performance. Ultimately, the optimal batch size is task-dependent and must be determined through experimentation.
+
+-Hidden layer
+-https://www.heatonresearch.com/2017/06/01/hidden-layers.html
+
+
+-Gamma/ LR parameter settings reference
+-https://codesignal.com/learn/courses/q-learning-unleashed-building-intelligent-agents/lessons/introduction-to-q-learning-building-intelligent-agents
+
 ---
 
 
