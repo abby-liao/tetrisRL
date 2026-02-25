@@ -1,16 +1,3 @@
-# Training Script - Optimized Version
-# ----------------------------------
-# Last Modified: February 24, 2026
-#
-# UPDATES & CHANGES (2026-02-24):
-# 1) EXTENDED TRAINING: TOTAL_EPISODES increased to 15000 to allow deeper strategy convergence.
-# 2) EXPLORATION TUNING: EPSILON_DECAY slowed to 0.9992 to match the longer training time.
-# 3) REWARD OVERHAUL: 
-#    - Increased hole penalty (-10.0) to aggressively discourage "towering" behavior.
-#    - Added squared reward (l**2) for line clears to prioritize multiple-line clears (Tetris).
-#    - Implemented a "Game Over" penalty (-50) to make the agent fear the ceiling.
-# 4) HUD ENHANCEMENT: Integrated HUD into rendering for better visual monitoring.
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -24,38 +11,33 @@ from src.model import DQN
 from src.tetris_env import TetrisEnv
 from src.visualizer import TetrisVideoRecorder
 
-# --- LOGGING & DIRECTORIES ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s',
-                    handlers=[logging.FileHandler("training.log"), logging.StreamHandler()])
+                    handlers=[logging.FileHandler("training_standard.log"), logging.StreamHandler()])
 
 os.makedirs("logs", exist_ok=True)
 os.makedirs("models", exist_ok=True)
-writer = SummaryWriter("logs/tetris_v15k_optimized")
+writer = SummaryWriter("logs/tetris_standard_greedy")
 
 recorder = TetrisVideoRecorder(
-    tb_log_dir="logs/tetris_v15k_optimized", 
+    tb_log_dir="logs/tetris_standard_greedy", 
     video_trigger=lambda ep: ep % 500 == 0,
     fps=15
 )
 
-# --- CONFIGURATION & HYPERPARAMETERS ---
 PIECE_COLORS = {
     1: (255, 255, 0), 2: (255, 0, 0), 3: (0, 165, 255), 
     4: (0, 255, 255), 5: (0, 255, 0), 6: (128, 0, 128), 7: (0, 0, 255)      
 }
 
-BATCH_SIZE = 512
-LR = 0.001
+BATCH_SIZE = 32
+LR = 0.01
 GAMMA = 0.99
 MEMORY = deque(maxlen=30000)
-
-# Training Duration
 TOTAL_EPISODES = 15001 
 
-# Exploration Parameters
-EPSILON = 1.0
-EPSILON_MIN = 0.01
-EPSILON_DECAY = 0.9992 
+EPSILON = 1.0           # Initial exploration rate
+EPSILON_MIN = 0.01      # Minimum exploration rate
+EPSILON_DECAY = 0.999   # Decay factor per episode (Standard greedy logic)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = TetrisEnv(use_render=False)
@@ -64,7 +46,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 criterion = nn.MSELoss()
 
 def render_frame(board, episode, score, reward, epsilon):
-    # Height 450 to accommodate more HUD text
     canvas = np.zeros((450, 350, 3), dtype=np.uint8)
     for r in range(20):
         for c in range(10):
@@ -75,18 +56,18 @@ def render_frame(board, episode, score, reward, epsilon):
             cv2.rectangle(canvas, (c*20, r*20), ((c+1)*20, (r+1)*20), (40, 40, 40), 1)
 
     font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(canvas, "LIVE TRAINING", (210, 30), font, 0.4, (255, 255, 255), 1)
+    cv2.putText(canvas, "STANDARD GREEDY", (210, 30), font, 0.4, (255, 255, 255), 1)
     cv2.putText(canvas, f"Ep: {episode}", (210, 70), font, 0.6, (0, 255, 255), 2)
     cv2.putText(canvas, f"Lines: {int(score)}", (210, 110), font, 0.5, (255, 255, 255), 1)
     cv2.putText(canvas, f"Reward: {int(reward)}", (210, 150), font, 0.5, (100, 100, 255), 1)
-    cv2.putText(canvas, f"Eps: {epsilon:.2f}", (210, 190), font, 0.5, (100, 255, 100), 1)
+    cv2.putText(canvas, f"Eps: {epsilon:.3f}", (210, 190), font, 0.5, (100, 255, 100), 1)
     cv2.line(canvas, (200, 0), (200, 450), (255, 255, 255), 1)
     return canvas
 
 def train_step():
     if len(MEMORY) < BATCH_SIZE: return 0
     batch = random.sample(MEMORY, BATCH_SIZE)
-    states, rewards, _ = zip(*batch)
+    states, rewards, done_flags = zip(*batch)
     state_t = torch.tensor(np.array(states)).to(device)
     reward_t = torch.tensor(np.array(rewards, dtype=np.float32)).unsqueeze(1).to(device)
     
@@ -97,8 +78,8 @@ def train_step():
     optimizer.step()
     return loss.item()
 
-# --- MAIN TRAINING LOOP ---
 epsilon = EPSILON
+
 for episode in range(TOTAL_EPISODES):
     piece = env.reset()
     done = False
@@ -110,6 +91,7 @@ for episode in range(TOTAL_EPISODES):
         if not next_steps: break
         
         actions = list(next_steps.keys())
+        
         if random.random() < epsilon:
             action = random.choice(actions)
         else:
@@ -121,14 +103,10 @@ for episode in range(TOTAL_EPISODES):
             model.train()
         
         best_feat, best_board = next_steps[action]
-        
-        # Reward Features: [height, lines, holes, bumpiness]
         h, l, holes, b = best_feat 
         
-        # Overhauled Reward Calculation
         reward = (l**2 * 12.0) - (h * 0.25) - (holes * 10.0) - (b * 0.2) + 2.0
         
-        # Check for Game Over (Top row hit)
         if np.any(best_board[0, :]):
             reward -= 50 
             done = True
@@ -138,7 +116,6 @@ for episode in range(TOTAL_EPISODES):
         total_reward += reward
         total_lines += l
         
-        # Recording check
         if episode % 500 == 0:
             frame = render_frame(env.board, episode, total_lines, total_reward, epsilon)
             recorder.record_frame(frame)
@@ -146,10 +123,10 @@ for episode in range(TOTAL_EPISODES):
         train_step()
         piece = random.choice(env.shapes)
     
-    # Epsilon decay
-    epsilon = max(EPSILON_MIN, epsilon * EPSILON_DECAY)
+    if epsilon > EPSILON_MIN:
+        epsilon *= EPSILON_DECAY
+        epsilon = max(epsilon, EPSILON_MIN)
 
-    # Logging and Checkpointing
     if episode % 50 == 0: 
         writer.add_scalar("Train/Reward", total_reward, episode)
         writer.add_scalar("Train/Lines_Cleared", total_lines, episode)
@@ -158,7 +135,7 @@ for episode in range(TOTAL_EPISODES):
 
     if episode % 500 == 0:
         recorder.finalize_video(tag="Replay/Animated_GIF", step=episode)
-        torch.save(model.state_dict(), f"models/tetris_ep{episode}.pth")
+        torch.save(model.state_dict(), f"models/tetris_standard_ep{episode}.pth")
 
 writer.close()
-print("Training Complete. Evolution models saved in 'models/' folder.")
+print("Training Complete. Standard Epsilon-Greedy models saved.")
