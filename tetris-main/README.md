@@ -27,7 +27,9 @@ This file implements a simplified Tetris environment that:
 These features are used by the agent to evaluate and select the best placement.
 
 ---
-## Training Pipeline (train.py)
+## Scoring
+Original Nintendo scoring system
+- https://tetris.wiki/Scoring
 
 
 ---
