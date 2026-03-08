@@ -5,8 +5,13 @@ import numpy as np
 from src.tetris_env import TetrisEnv
 
 COLORS = {
-    1: (255, 255, 0), 2: (255, 0, 0), 3: (0, 165, 255),
-    4: (0, 255, 255), 5: (0, 255, 0), 6: (128, 0, 128), 7: (0, 0, 255)
+    1: (255, 200, 0),   
+    2: (50, 50, 255),   
+    3: (0, 150, 255),   
+    4: (0, 215, 255),   
+    5: (50, 220, 50),   
+    6: (200, 50, 200),  
+    7: (255, 50, 50)    
 }
 
 class TetrisGame:
@@ -14,10 +19,10 @@ class TetrisGame:
         pygame.init()
         self.env = TetrisEnv(use_render=False)
         self.cell = 30
-        self.screen = pygame.display.set_mode((self.env.width * self.cell + 200, self.env.height * self.cell))
-        pygame.display.set_caption("Tetris Manual Play - Hard Drop Enabled")
+        self.screen = pygame.display.set_mode((self.env.width * self.cell + 220, self.env.height * self.cell))
+        pygame.display.set_caption("Tetris Manual Play - Score & Reward")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("Arial", 20)
+        self.font = pygame.font.SysFont("Arial", 20, bold=True)
         self.reset()
 
     def reset(self):
@@ -26,6 +31,8 @@ class TetrisGame:
         self.current_piece = self.env.shapes[self.current_piece_idx - 1]
         self.curr_pos = [0, self.env.width // 2 - len(self.current_piece[0]) // 2]
         self.total_lines = 0
+        self.total_score = 0
+        self.total_reward = 0.0
         self.done = False
 
     def check_collision(self, piece, pos):
@@ -43,8 +50,28 @@ class TetrisGame:
                 if val:
                     self.env.board[self.curr_pos[0] + r, self.curr_pos[1] + c] = self.current_piece_idx
         
+        feat, _ = self.env.get_state_properties(self.env.board)
+        h, num_cleared, holes, b = feat
+        
+        current_level = self.total_lines // 12
+        n_plus_1 = current_level + 1
+        
+        line_scores = {1: 40, 2: 100, 3: 300, 4: 1200}
+        self.total_score += line_scores.get(num_cleared, 0) * n_plus_1
+
+        step_reward = 2.0
+        if num_cleared == 1: step_reward += 40 * n_plus_1
+        elif num_cleared == 2: step_reward += 100 * n_plus_1
+        elif num_cleared == 3: step_reward += 300 * n_plus_1
+        elif num_cleared == 4: step_reward += 1200 * n_plus_1
+        
+        step_reward -= (holes * 4.0)
+        step_reward -= (h * 0.2)
+        step_reward -= (b * 0.1)
+        
+        self.total_reward += step_reward
+
         mask = np.all(self.env.board != 0, axis=1)
-        num_cleared = np.sum(mask)
         if num_cleared > 0:
             new_board = self.env.board[~mask]
             self.env.board = np.vstack([np.zeros((num_cleared, self.env.width)), new_board])
@@ -55,12 +82,13 @@ class TetrisGame:
         self.curr_pos = [0, self.env.width // 2 - len(self.current_piece[0]) // 2]
         
         if self.check_collision(self.current_piece, self.curr_pos):
+            self.total_reward -= 50
             self.done = True
 
     def run(self):
         drop_count = 0
         while not self.done:
-            self.screen.fill((20, 20, 20))
+            self.screen.fill((255, 255, 255))
             dt = self.clock.tick(60)
             drop_count += dt
 
@@ -98,18 +126,17 @@ class TetrisGame:
             self.draw()
             pygame.display.flip()
 
-        print(f"Game Over! Lines: {self.total_lines}")
         pygame.quit()
 
     def draw(self):
         for r in range(self.env.height):
-            for c in range(env_width := self.env.width):
+            for c in range(self.env.width):
                 val = int(self.env.board[r, c])
                 rect = (c * self.cell, r * self.cell, self.cell - 1, self.cell - 1)
                 if val > 0:
-                    pygame.draw.rect(self.screen, COLORS.get(val, (150, 150, 150)), rect)
+                    pygame.draw.rect(self.screen, COLORS.get(val, (200, 200, 200)), rect)
                 else:
-                    pygame.draw.rect(self.screen, (40, 40, 40), rect, 1)
+                    pygame.draw.rect(self.screen, (230, 230, 230), rect, 1)
 
         for r, row in enumerate(self.current_piece):
             for c, val in enumerate(row):
@@ -117,10 +144,20 @@ class TetrisGame:
                     rect = ((self.curr_pos[1] + c) * self.cell, (self.curr_pos[0] + r) * self.cell, self.cell - 1, self.cell - 1)
                     pygame.draw.rect(self.screen, COLORS.get(self.current_piece_idx), rect)
 
-        h, _, holes, b = self.env.get_state_properties(self.env.board)
-        info = [f"Lines: {int(self.total_lines)}", f"Height: {int(h)}", f"Holes: {int(holes)}", f"Bumpiness: {int(b)}"]
+        level = self.total_lines // 12
+        info = [
+            f"LEVEL: {int(level)}",
+            f"LINES: {int(self.total_lines)}",
+            f"SCORE: {int(self.total_score)}",
+            f"REWARD: {self.total_reward:.1f}"
+        ]
+        
         for i, text in enumerate(info):
-            self.screen.blit(self.font.render(text, True, (255, 255, 255)), (self.env.width * self.cell + 20, 20 + i * 30))
+            color = (0, 0, 0) if "REWARD" not in text else (0, 150, 0)
+            text_surface = self.font.render(text, True, color)
+            self.screen.blit(text_surface, (self.env.width * self.cell + 20, 40 + i * 50))
+        
+        pygame.draw.line(self.screen, (0, 0, 0), (self.env.width * self.cell, 0), (self.env.width * self.cell, self.env.height * self.cell), 2)
 
 if __name__ == "__main__":
     TetrisGame().run()
