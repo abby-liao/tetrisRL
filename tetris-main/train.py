@@ -12,7 +12,7 @@ from src.model import DQN
 from src.tetris_env import TetrisEnv
 from src.visualizer import TetrisVideoRecorder
 
-LOG_NAME = "nintendo_v3_white_style"
+LOG_NAME = "Episodes_75"
 LOG_DIR = f"logs/{LOG_NAME}"
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs("models", exist_ok=True)
