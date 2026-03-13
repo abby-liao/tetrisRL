@@ -2,17 +2,15 @@ import torch
 import torch.nn as nn
 
 class DQN(nn.Module):
-    def __init__(self, input_size=4):
+    def __init__(self, input_size = 6): 
         super(DQN, self).__init__()
-        self.net = nn.Sequential(
+        self.fc = nn.Sequential(
             nn.Linear(input_size, 64),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Linear(32, 1) 
+            nn.ReLU(inplace=True),
+            nn.Linear(64, 1)
         )
 
     def forward(self, x):
-        return self.net(x)
+        return self.fc(x)
