@@ -4,12 +4,6 @@ A reinforcement learning based Tetris agent that evaluates possible placements u
 
 ---
 
-##  Project Structure
-(tree)
-
-
----
-
 ## Model (model.py)
 
 This file defines a multi-layer fully connected neural network (DQN) that takes four input features and processes them through several linear layers with ReLU activations to produce a single scalar value representing the score or value of a state, allowing the system to compare different decisions. The current hidden-layer configuration (64-64-32) is just one common architectural choice, and we can also experiment with other layer sizes and combinations to evaluate their impact on training stability and performance.
