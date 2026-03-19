@@ -12,22 +12,21 @@ from src.model import DQN
 from src.tetris_env import TetrisEnv
 from src.visualizer import TetrisVideoRecorder
 
-LOG_NAME = "hybrid_heuristic_m1"
+LOG_NAME = "exp_decay_min_0.005"
 LOG_DIR = f"logs/{LOG_NAME}"
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs("models", exist_ok=True)
 
-TOTAL_EPISODES = 12001 
-BATCH_SIZE = 128
+TOTAL_EPISODES = 5000 
+BATCH_SIZE = 128        
 LR = 0.0003
 GAMMA = 0.99
 MEMORY = deque(maxlen=50000)
-TARGET_UPDATE_ITER = 1000
+TARGET_UPDATE_ITER = 500 
 
 EPSILON_START = 1.0
-EPSILON_MIN = 0.02
-EPSILON_STOP_EPISODE = 8000
-epsilon_step = (EPSILON_START - EPSILON_MIN) / EPSILON_STOP_EPISODE
+EPSILON_MIN = 0.005
+EPSILON_DECAY = 0.9982  
 
 PIECE_COLORS = {
     1: (255, 200, 0), 2: (50, 50, 255), 3: (0, 150, 255), 
@@ -64,7 +63,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = TetrisEnv(use_render=False)
-model = DQN().to(device) 
+model = DQN().to(device)  
 target_model = DQN().to(device)
 target_model.load_state_dict(model.state_dict())
 
@@ -74,16 +73,19 @@ writer = SummaryWriter(LOG_DIR)
 recorder = TetrisVideoRecorder(tb_log_dir=LOG_DIR, video_trigger=lambda ep: ep % 1000 == 0, fps=15)
 
 epsilon = EPSILON_START
+
 for episode in range(TOTAL_EPISODES):
     piece = env.reset()
     done, total_reward, total_lines, game_score = False, 0, 0, 0
     piece_count = 0
+    epoch_losses = [] 
 
     while not done:
         next_steps = env.get_next_states(piece)
         if not next_steps: break
         
         actions = list(next_steps.keys())
+        
         if random.random() < epsilon:
             action = random.choice(actions)
         else:
@@ -101,16 +103,16 @@ for episode in range(TOTAL_EPISODES):
         n_plus_1 = current_level + 1
         
         if l == 4:
-            reward = 1000.0 * n_plus_1
+            reward = 1000.0 * n_plus_1  
         elif l > 0:
             reward = (l ** 2) * 15.0 * n_plus_1
         else:
-            reward = 1.0 
+            reward = 1.0  
             
-        reward -= (holes * 12.0)    
-        reward -= (b * 2.5)        
+        reward -= (holes * 12.0)   
+        reward -= (b * 2.5)         
         reward -= (rt * 1.0)        
-        reward -= (ct * 1.0)        
+        reward -= (ct * 1.0)       
         reward -= (h * 0.5)         
 
         if np.any(next_board[0, :]):
@@ -152,25 +154,29 @@ for episode in range(TOTAL_EPISODES):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            epoch_losses.append(loss.item())
 
         piece = random.choice(env.shapes)
 
     if episode % 1000 == 0:
-        recorder.finalize_video(tag="Replay/Hybrid_Style", step=episode)
+        recorder.finalize_video(tag="Replay/Exp_Decay_Ultra_Low", step=episode)
 
-    if epsilon > EPSILON_MIN:
-        epsilon -= epsilon_step
+    epsilon = max(EPSILON_MIN, epsilon * EPSILON_DECAY)
 
     if episode % TARGET_UPDATE_ITER == 0:
         target_model.load_state_dict(model.state_dict())
 
     if episode % 100 == 0:
+        avg_loss = sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0
+        writer.add_scalar("Train/Loss", avg_loss, episode)
         writer.add_scalar("Train/Score", game_score, episode) 
         writer.add_scalar("Train/Reward", total_reward, episode) 
         writer.add_scalar("Train/Lines", total_lines, episode)
-        logging.info(f"Ep: {episode} | Lines: {total_lines} | Score: {game_score} | Eps: {epsilon:.2f}")
+        writer.add_scalar("Train/Epsilon", epsilon, episode)
+        logging.info(f"Ep: {episode} | Loss: {avg_loss:.4f} | Lines: {total_lines} | Eps: {epsilon:.4f}")
 
     if episode % 1000 == 0:
         torch.save(model.state_dict(), f"models/{LOG_NAME}_ep{episode}.pth")
 
 writer.close()
+
